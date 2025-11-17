@@ -1,0 +1,5 @@
+audio/mp4 m4a;
+audio/mpeg mp3;
+audio/flac flac;
+audio/wav wav;
+audio/ogg ogg;
