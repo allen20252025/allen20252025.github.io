@@ -6,8 +6,7 @@ on:
       - main
   workflow_dispatch:
   schedule:
-    # 每周一凌晨 3 点扫描（可调）
-    - cron: '0 3 * * 1'
+    - cron: '0 3 * * 1'   # 每周一凌晨执行一次
 
 permissions:
   contents: write
@@ -28,26 +27,61 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Organize directory structure
+      - name: Ensure directories exist
         run: |
-          mkdir -p "music list" vm mac win "music GitHub"
+          mkdir -p "music GitHub" "music list" mac vm win
 
-          # Move .m3u playlists
-          find . -maxdepth 1 -type f -name "*.m3u" -exec git mv {} "music list/" \;
-
-          # Move vm* files
-          find . -maxdepth 1 -type f -name "vm*" -exec git mv {} vm/ \;
-
-          # Move mac* files
-          find . -maxdepth 1 -type f -name "mac*" -exec git mv {} mac/ \;
-
-          # Move win* files
-          find . -maxdepth 1 -type f -name "win*" -exec git mv {} win/ \;
-
-          # Move non-music, non-list files to music GitHub
-          for f in $(find . -maxdepth 1 -type f ! -name "*.mp3" ! -name "*.m4a" ! -name "*.m3u" ! -name "README.md" ! -name "DIRECTORY.md" ! -name ".gitignore" ! -name ".gitattributes" ! -name "*.yml"); do
+      - name: Move non-music resource files to music GitHub
+        run: |
+          for f in $(find . -maxdepth 1 -type f ! -name "*.mp3" ! -name "*.m4a" ! -name "*.m3u" ! -name "README.md" ! -name "DIRECTORY.md" ! -name ".gitignore" ! -name ".gitattributes" ! -name ".htaccess" ! -name ".nojekyll" ! -name "_config.yml" ! -name "index.html" ! -name "*.yml"); do
             git mv "$f" "music GitHub/" 2>/dev/null || true
           done
+
+      - name: Move mac scripts
+        run: |
+          find . -maxdepth 1 -type f -regex "./mac[-_].*" -exec git mv {} mac/ \; 2>/dev/null || true
+
+      - name: Move vm scripts
+        run: |
+          find . -maxdepth 1 -type f -regex "./vm[-_].*" -exec git mv {} vm/ \; 2>/dev/null || true
+
+      - name: Move win scripts
+        run: |
+          find . -maxdepth 1 -type f -regex "./win[-_].*" -exec git mv {} win/ \; 2>/dev/null || true
+
+      - name: Do not move .m3u playlists (only ensure directory exists)
+        run: |
+          # Playlist directory only, manual decision to avoid breaking audio links
+          echo "Keeping *.m3u files in root to protect streaming links"
+
+      - name: Generate/Update DIRECTORY.md
+        run: |
+          cat << 'EOF' > DIRECTORY.md
+          # Repository Directory Guide
+
+          This repository hosts static music files for streaming via GitHub Pages.
+          **Certain file types MUST NOT be moved**, or direct links will break.
+
+          ## 📌 Rules
+
+          | File Type | Action | Reason |
+          |-----------|--------|--------|
+          | `.mp3`, `.m4a` | Stay in root | Streaming URL stability |
+          | `.m3u` | Stay in root | Used as playlist links; moving breaks client references |
+          | `mac_*, mac-*` | Move to `mac/` | macOS scripts |
+          | `vm_*, vm-*` | Move to `vm/` | Virtual machine scripts |
+          | `win_*, win-*` | Move to `win/` | Windows scripts |
+          | Others (not media) | Move to `music GitHub/` | Not used by player |
+
+          ## 📂 Directory Structure
+
+          - `music GitHub/` → Maintenance & resource files (NOT audio)
+          - `music list/` → *(reserved, disabled for safety)*
+          - `mac/` → macOS scripts
+          - `vm/` → VM scripts
+          - `win/` → Windows scripts
+
+          EOF
 
       - name: Check if changes were made
         run: |
@@ -58,26 +92,26 @@ jobs:
 
       - name: Commit changes
         run: |
-          git commit -m "chore: auto-organize repository structure"
+          git commit -m "chore: auto-organize directory structure"
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
-          commit-message: "chore: auto-organize repository structure"
+          commit-message: "chore: auto-organize directory structure"
           title: "Auto-organized: Repository Maintenance"
           body: |
             ### 🤖 自动整理完成
-            本 Pull Request 由 GitHub Actions 自动生成。
-            根据规则重新整理了脚本与资源目录，不影响音频直链。
 
-            #### 📦 目录规则
-            - `.mp3/.m4a` → 保持在根目录（避免直链失效）
-            - `.m3u` → `music list/`
-            - `vm*` → `vm/`
-            - `mac*` → `mac/`
-            - `win*` → `win/`
-            - 其他非音频托管相关 → `music GitHub/`
+            本 Pull Request 由 GitHub Actions 自动创建。
 
-            请检查无误后合并。
+            #### 📌 规则说明（不会移动 `.mp3/.m4a/.m3u`）
+            - `.mp3/.m4a` **保持在根目录**（避免直链失效）
+            - `.m3u` **保持在根目录**（避免歌单播放失效）
+            - `mac_*, mac-*` → `mac/`
+            - `vm_*, vm-*` → `vm/`
+            - `win_*, win-*` → `win/`
+            - 其他非音频文件 → `music GitHub/`
+
+            请审核后合并。
 
           branch: auto-organize-script
