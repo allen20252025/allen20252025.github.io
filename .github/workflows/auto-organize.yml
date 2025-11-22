@@ -6,7 +6,7 @@ on:
       - main
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * 1'   # 每周一凌晨整理一次
+    - cron: '0 3 * * 1'
 
 permissions:
   contents: write
@@ -27,39 +27,32 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      # 🟢 1) 定义脚本扩展名（可扩展）
+      # 🟢 定义支持的脚本类型（修复版）
       - name: Define script extensions
         run: |
-          echo "SCRIPT_EXTENSIONS=\(.sh|.bash|.zsh|.ksh|.py|.ps1|.bat|.cmd|.rb|.pl|.php|.lua|.js|.txt|.conf|.ini)$" >> $GITHUB_ENV
+          echo 'SCRIPT_EXTENSIONS=(\.(sh|bash|zsh|ksh|py|ps1|bat|cmd|rb|pl|php|lua|js|txt|conf|ini))$' >> $GITHUB_ENV
 
-      # 🟢 2) 先移动脚本（按 mac/vm/win 前缀）
+      # 🟢 分类脚本文件
       - name: Move mac scripts
         run: |
           mkdir -p mac
-          for f in $(ls | grep -E '^mac.*' | grep -E "$SCRIPT_EXTENSIONS"); do
-            git mv "$f" mac/ 2>/dev/null || true
-          done
+          for f in $(ls | grep -E '^mac' | grep -E "$SCRIPT_EXTENSIONS"); do git mv "$f" mac/ 2>/dev/null || true; done
 
       - name: Move vm scripts
         run: |
           mkdir -p vm
-          for f in $(ls | grep -E '^vm.*' | grep -E "$SCRIPT_EXTENSIONS"); do
-            git mv "$f" vm/ 2>/dev/null || true
-          done
+          for f in $(ls | grep -E '^vm' | grep -E "$SCRIPT_EXTENSIONS"); do git mv "$f" vm/ 2>/dev/null || true; done
 
       - name: Move win scripts
         run: |
           mkdir -p win
-          for f in $(ls | grep -E '^win.*' | grep -E "$SCRIPT_EXTENSIONS"); do
-            git mv "$f" win/ 2>/dev/null || true
-          done
+          for f in $(ls | grep -E '^win' | grep -E "$SCRIPT_EXTENSIONS"); do git mv "$f" win/ 2>/dev/null || true; done
 
-      # 🛑 3) 保留音乐文件在根目录，保护播放
+      # 🛑 音频文件必须保留根目录
       - name: Protect streaming audio files
-        run: |
-          echo "Keeping media at root: .m3u .mp3 .m4a .flac"
+        run: echo "Keeping .mp3 .m4a .flac .m3u at root"
 
-      # 🟡 4) 其他非音乐 & 非脚本文件 → 归档目录 music GitHub
+      # 🟡 其他非脚本非音频归档
       - name: Move other non-media files to archive
         run: |
           mkdir -p "music GitHub"
@@ -67,46 +60,38 @@ jobs:
             git mv "$f" "music GitHub/" 2>/dev/null || true
           done
 
-      # 📄 5) 自动生成目录说明文档
+      # 📄 自动生成目录说明（保持不变）
       - name: Generate/Update DIRECTORY.md
         run: |
           cat << 'EOF' > DIRECTORY.md
           # Repository Directory Guide
 
-          ## 📌 Rules
+          ## 🎵 Music Files (root)
+          `.mp3`, `.m4a`, `.flac`, `.m3u` must remain at root to keep streaming links stable.
 
-          ### 🎵 Music (root)
-          | File Type | Reason |
-          |-----------|--------|
-          | `.mp3`, `.m4a`, `.flac` | Streaming links must remain stable |
-          | `.m3u` | Playlist paths must not change |
-
-          ### 🖥 Scripts
-          Script-type extensions stay organized by prefix:
+          ## 🖥 Script Files
+          Scripts are auto-organized by OS prefix:
 
           | Prefix | Folder | Example |
           |--------|--------|---------|
-          | `mac*` | `mac/` | mac_sysinfo.sh |
-          | `vm*` | `vm/` | vm_setup.py |
+          | `mac*` | `mac/` | mac_test.sh |
+          | `vm*`  | `vm/`  | vm_setup.py |
           | `win*` | `win/` | win_clean.ps1 |
 
-          ### 📦 Archives & Resources
-          | Folder | Content |
-          |--------|---------|
-          | `music GitHub/` | Resources, metadata, backups, misc |
+          ## 📦 Archives
+          `music GitHub/` contains misc. files (non-script/non-audio).
 
           EOF
 
-      # ✔ 6) 检查变更再自动提交
+      # ✔ 提交分类改动
       - name: Commit changes
         run: |
           if git diff --cached --quiet; then
-            echo "No changes detected. Exiting."
-            exit 0
+            echo "No changes detected."; exit 0;
           fi
           git commit -m "chore: auto-organize directory structure"
 
-      # 🤖 7) 创建 PR 并标记自动合并
+      # 📨 创建可自动合并的 PR
       - name: Create Auto-PR
         uses: peter-evans/create-pull-request@v6
         with:
@@ -118,10 +103,14 @@ jobs:
             automated
             automerge
 
-      # 🔁 8) 使用 GitHub 原生 API 自动合并
-      - name: Enable Auto-Merge
-        if: ${{ github.event_name != 'pull_request' }}
+      # 📌 安装 GitHub CLI
+      - name: Install GitHub CLI
         run: |
-          gh pr merge auto-organize-script --squash --auto
+          sudo apt-get update >/dev/null
+          sudo apt-get install -y gh >/dev/null
+
+      # 🔁 自动合并 PR（GitHub 官方 API）
+      - name: Enable Auto-Merge
+        run: gh pr merge auto-organize-script --squash --auto
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
