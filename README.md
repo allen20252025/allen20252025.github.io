@@ -1,2 +1,2 @@
 # my-music.github.io
-Auto organize test
+Auto-organize test
