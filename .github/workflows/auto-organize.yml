@@ -6,7 +6,7 @@ on:
       - main
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * 1'   # 每周一凌晨执行一次
+    - cron: '0 3 * * 1'   # 每周一凌晨整理一次
 
 permissions:
   contents: write
@@ -27,91 +27,99 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Ensure directories exist
+      # 🟢 1) 定义脚本扩展名（可扩展）
+      - name: Define script extensions
         run: |
-          mkdir -p "music GitHub" "music list" mac vm win
+          echo "SCRIPT_EXTENSIONS=\(.sh|.bash|.zsh|.ksh|.py|.ps1|.bat|.cmd|.rb|.pl|.php|.lua|.js|.txt|.conf|.ini)$" >> $GITHUB_ENV
 
-      - name: Move non-music resource files to music GitHub
-        run: |
-          for f in $(find . -maxdepth 1 -type f ! -name "*.mp3" ! -name "*.m4a" ! -name "*.m3u" ! -name "README.md" ! -name "DIRECTORY.md" ! -name ".gitignore" ! -name ".gitattributes" ! -name ".htaccess" ! -name ".nojekyll" ! -name "_config.yml" ! -name "index.html" ! -name "*.yml"); do
-            git mv "$f" "music GitHub/" 2>/dev/null || true
-          done
-
+      # 🟢 2) 先移动脚本（按 mac/vm/win 前缀）
       - name: Move mac scripts
         run: |
-          find . -maxdepth 1 -type f -regex "./mac[-_].*" -exec git mv {} mac/ \; 2>/dev/null || true
+          mkdir -p mac
+          for f in $(ls | grep -E '^mac.*' | grep -E "$SCRIPT_EXTENSIONS"); do
+            git mv "$f" mac/ 2>/dev/null || true
+          done
 
       - name: Move vm scripts
         run: |
-          find . -maxdepth 1 -type f -regex "./vm[-_].*" -exec git mv {} vm/ \; 2>/dev/null || true
+          mkdir -p vm
+          for f in $(ls | grep -E '^vm.*' | grep -E "$SCRIPT_EXTENSIONS"); do
+            git mv "$f" vm/ 2>/dev/null || true
+          done
 
       - name: Move win scripts
         run: |
-          find . -maxdepth 1 -type f -regex "./win[-_].*" -exec git mv {} win/ \; 2>/dev/null || true
+          mkdir -p win
+          for f in $(ls | grep -E '^win.*' | grep -E "$SCRIPT_EXTENSIONS"); do
+            git mv "$f" win/ 2>/dev/null || true
+          done
 
-      - name: Do not move .m3u playlists (only ensure directory exists)
+      # 🛑 3) 保留音乐文件在根目录，保护播放
+      - name: Protect streaming audio files
         run: |
-          # Playlist directory only, manual decision to avoid breaking audio links
-          echo "Keeping *.m3u files in root to protect streaming links"
+          echo "Keeping media at root: .m3u .mp3 .m4a .flac"
 
+      # 🟡 4) 其他非音乐 & 非脚本文件 → 归档目录 music GitHub
+      - name: Move other non-media files to archive
+        run: |
+          mkdir -p "music GitHub"
+          for f in $(find . -maxdepth 1 -type f ! -name "*.mp3" ! -name "*.m4a" ! -name "*.flac" ! -name "*.m3u" ! -name "*.yml" ! -name "*.md" ! -name "README" ! -name "DIRECTORY.md" ! -name ".nojekyll" ! -name ".gitattributes" ! -name ".mime.types" ! -name ".htaccess" ! -name "_config.yml" ! -name "index.html"); do
+            git mv "$f" "music GitHub/" 2>/dev/null || true
+          done
+
+      # 📄 5) 自动生成目录说明文档
       - name: Generate/Update DIRECTORY.md
         run: |
           cat << 'EOF' > DIRECTORY.md
           # Repository Directory Guide
 
-          This repository hosts static music files for streaming via GitHub Pages.
-          **Certain file types MUST NOT be moved**, or direct links will break.
-
           ## 📌 Rules
 
-          | File Type | Action | Reason |
-          |-----------|--------|--------|
-          | `.mp3`, `.m4a` | Stay in root | Streaming URL stability |
-          | `.m3u` | Stay in root | Used as playlist links; moving breaks client references |
-          | `mac_*, mac-*` | Move to `mac/` | macOS scripts |
-          | `vm_*, vm-*` | Move to `vm/` | Virtual machine scripts |
-          | `win_*, win-*` | Move to `win/` | Windows scripts |
-          | Others (not media) | Move to `music GitHub/` | Not used by player |
+          ### 🎵 Music (root)
+          | File Type | Reason |
+          |-----------|--------|
+          | `.mp3`, `.m4a`, `.flac` | Streaming links must remain stable |
+          | `.m3u` | Playlist paths must not change |
 
-          ## 📂 Directory Structure
+          ### 🖥 Scripts
+          Script-type extensions stay organized by prefix:
 
-          - `music GitHub/` → Maintenance & resource files (NOT audio)
-          - `music list/` → *(reserved, disabled for safety)*
-          - `mac/` → macOS scripts
-          - `vm/` → VM scripts
-          - `win/` → Windows scripts
+          | Prefix | Folder | Example |
+          |--------|--------|---------|
+          | `mac*` | `mac/` | mac_sysinfo.sh |
+          | `vm*` | `vm/` | vm_setup.py |
+          | `win*` | `win/` | win_clean.ps1 |
+
+          ### 📦 Archives & Resources
+          | Folder | Content |
+          |--------|---------|
+          | `music GitHub/` | Resources, metadata, backups, misc |
 
           EOF
 
-      - name: Check if changes were made
+      # ✔ 6) 检查变更再自动提交
+      - name: Commit changes
         run: |
           if git diff --cached --quiet; then
             echo "No changes detected. Exiting."
             exit 0
           fi
-
-      - name: Commit changes
-        run: |
           git commit -m "chore: auto-organize directory structure"
 
-      - name: Create Pull Request
+      # 🤖 7) 自动创建 & 自动合并 PR
+      - name: Create Auto-PR and Merge
         uses: peter-evans/create-pull-request@v6
         with:
           commit-message: "chore: auto-organize directory structure"
-          title: "Auto-organized: Repository Maintenance"
-          body: |
-            ### 🤖 自动整理完成
-
-            本 Pull Request 由 GitHub Actions 自动创建。
-
-            #### 📌 规则说明（不会移动 `.mp3/.m4a/.m3u`）
-            - `.mp3/.m4a` **保持在根目录**（避免直链失效）
-            - `.m3u` **保持在根目录**（避免歌单播放失效）
-            - `mac_*, mac-*` → `mac/`
-            - `vm_*, vm-*` → `vm/`
-            - `win_*, win-*` → `win/`
-            - 其他非音频文件 → `music GitHub/`
-
-            请审核后合并。
-
+          title: "Auto-organized Repository Structure"
+          body: "🤖 Automated update. Music safe. Scripts organized."
           branch: auto-organize-script
+          labels: automated
+
+      - name: Auto Merge
+        uses: pascalgn/automerge-action@v0.16.3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          pullRequest: true
+          mergeMethod: squash
