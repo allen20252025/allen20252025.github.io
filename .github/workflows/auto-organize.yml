@@ -106,20 +106,24 @@ jobs:
           fi
           git commit -m "chore: auto-organize directory structure"
 
-      # 🤖 7) 自动创建 & 自动合并 PR
-      - name: Create Auto-PR and Merge
+      # 🤖 7) 创建 PR 并标注可合并
+      - name: Create Auto-PR
         uses: peter-evans/create-pull-request@v6
         with:
           commit-message: "chore: auto-organize directory structure"
           title: "Auto-organized Repository Structure"
           body: "🤖 Automated update. Music safe. Scripts organized."
           branch: auto-organize-script
-          labels: automated
+          labels: |
+            automerge
+            automated
 
-      - name: Auto Merge
+      # 🔄 8) 自动合并标记了 `automerge` 的 PR
+      - name: Automerge PR
         uses: pascalgn/automerge-action@v0.16.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          pullRequest: true
-          mergeMethod: squash
+          merge_label: automerge
+          max_retries: 3
+
