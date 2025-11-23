@@ -126,22 +126,18 @@ catch {
 }
 "`n" | Write-Log
 
-#--------------------------------------------------
-# 网络测速（speedtest-cli）
-#--------------------------------------------------
-Write-Section "网络测速（speedtest-cli）" "python -m speedtest --simple"
-
-if ($pythonPath) {
-    try {
-        & $pythonPath -m speedtest --simple 2>&1 | Write-Log
-    }
-    catch {
-        ("speedtest-cli 执行失败：{0}" -f $_.Exception.Message) | Write-Log
-    }
-} else {
-    "未检测到 Python，无法执行 speedtest-cli。" | Write-Log
+# ==========================
+# 网络测速（自动选择最近服务器）
+# ==========================
+function Run-Section {
+    param([string]$Title, [string]$Cmd)
+    Write-Host ""
+    Write-Host "==== $Title ===="
+    iex $Cmd
 }
-"`n" | Write-Log
+
+Run-Section "网络测速（speedtest-cli）" `
+    "speedtest-cli --secure --simple"
 
 #--------------------------------------------------
 # Python 10^8 加法循环
