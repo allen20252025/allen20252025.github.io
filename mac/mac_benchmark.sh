@@ -41,9 +41,17 @@ run_section "磁盘随机读（fio 256MB, bs=4K）" \
 # 🧹 FIO 测试文件清理（新增）
 rm -f seqwrite.* randread.* >/dev/null 2>&1 || true
 
-# 网络测速（⚠️ 服务器不可用则给提示，不终止脚本）
+# ==========================
+# 网络测速（自动选择最近服务器）
+# ==========================
+run_section() {
+  echo "\n==== $1 ===="
+  shift
+  "$@"
+}
+
 run_section "网络测速（speedtest-cli）" \
-  bash -c 'speedtest-cli --secure --simple || echo "⚠️ speedtest 服务器不可用，已跳过测速"'
+  speedtest-cli --secure --simple
 
 # Python 10^8 加法循环
 echo "==== Python 10^8 加法循环 ====" | tee -a "$LOG_FILE"
